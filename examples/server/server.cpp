@@ -43,6 +43,15 @@
 #include <signal.h>
 #include <memory>
 
+#ifdef WINDOWSSERVICE
+#include <windows.h>
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <sstream>
+#endif
+
 using json = nlohmann::ordered_json;
 
 bool server_verbose = false;
@@ -2465,7 +2474,140 @@ inline void signal_handler(int signal) {
     shutdown_handler(signal);
 }
 
+#ifdef WINDOWSSERVICE
+
+SERVICE_STATUS ServiceStatus = {};
+SERVICE_STATUS_HANDLE hStatus = nullptr;
+std::atomic<bool> running{true};
+
+void WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv); 
+void WINAPI ControlHandler(DWORD request); 
+int RunMyApplication(int argc, char* argv[]);
+std::vector<std::string> ReadConfigFile(const std::string& filepath);
+std::vector<char*> argvVec;
+// Only config file
+std::vector<std::string> configArgs;
+int main(int argc, char* argv[]) {
+    SERVICE_TABLE_ENTRY ServiceTable[] = {
+        { (LPSTR)"llama", (LPSERVICE_MAIN_FUNCTION)ServiceMain },
+        { nullptr, nullptr }
+    };
+    char tempPath[MAX_PATH];
+    char logOut[MAX_PATH];
+    char logErr[MAX_PATH];
+    GetTempPath(MAX_PATH, tempPath);
+    // Concat outpout file names into temp directory
+    snprintf(logOut, MAX_PATH, "%sllama.out.txt", tempPath);
+    snprintf(logErr, MAX_PATH, "%sllama.err.txt", tempPath);
+    // Redirect stdout and stderr to these files
+    freopen(logOut, "w", stdout);
+    freopen(logErr, "w", stderr);
+    std::cerr << "Main Arg number : " << argc << std::endl;
+
+    if (argc == 2) {
+        configArgs= ReadConfigFile(argv[1]);
+        // Build args of the main function
+        argvVec.push_back(argv[0]);  // Program name
+        for (const auto& arg : configArgs) {
+            argvVec.push_back(const_cast<char*>(arg.c_str()));
+        }
+    } else {
+        for (DWORD i = 0; i < argc; ++i) {
+            argvVec.push_back(argv[i]);
+        }
+    }
+
+    if (!StartServiceCtrlDispatcher(ServiceTable)) {     
+        // Read config file
+        if (argc != 2) {
+            return RunMyApplication(argc, argv);
+        }
+        // If it is not started as a service, start in console mode
+        return RunMyApplication(static_cast<int>(argvVec.size()) , argvVec.data());
+    }
+
+    return 0;
+}
+
+void WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
+
+
+    hStatus = RegisterServiceCtrlHandler("llama", (LPHANDLER_FUNCTION)ControlHandler);
+    if (hStatus == nullptr) {
+        return;
+    }
+
+    // Inint the win32 service
+    ServiceStatus.dwServiceType = SERVICE_WIN32;
+    ServiceStatus.dwCurrentState = SERVICE_START_PENDING;
+    ServiceStatus.dwControlsAccepted = SERVICE_ACCEPT_STOP | SERVICE_ACCEPT_SHUTDOWN;
+
+    SetServiceStatus(hStatus, &ServiceStatus);
+
+    // Start the service
+    ServiceStatus.dwCurrentState = SERVICE_RUNNING;
+    SetServiceStatus(hStatus, &ServiceStatus);
+
+    // Call the main function of the saervice
+    RunMyApplication(static_cast<int>(argvVec.size()), argvVec.data());
+
+    // Stop the service when the main function ends
+    ServiceStatus.dwCurrentState = SERVICE_STOPPED;
+    SetServiceStatus(hStatus, &ServiceStatus);
+}
+
+void ControlHandler(DWORD request) {
+    switch (request) {
+    case SERVICE_CONTROL_STOP:
+    case SERVICE_CONTROL_SHUTDOWN:
+        ServiceStatus.dwWin32ExitCode = 0;
+        ServiceStatus.dwCurrentState = SERVICE_STOP_PENDING;
+        SetServiceStatus(hStatus, &ServiceStatus);
+
+        // Call the shutdown method to simulate Control-C
+        shutdown_handler(CTRL_C_EVENT);
+
+        // Wait the program stop properly
+        while (ServiceStatus.dwCurrentState != SERVICE_STOPPED) {
+            Sleep(100);
+        }
+        return;
+    default:
+        break;
+    }
+    SetServiceStatus(hStatus, &ServiceStatus);
+}
+
+std::vector<std::string> ReadConfigFile(const std::string& filepath) {
+    std::vector<std::string> args;
+    std::ifstream file(filepath);
+    if (!file.is_open()) {
+        std::cerr << "Unable to open config file: " << filepath << std::endl;
+        return args;
+    }
+
+    std::string line;
+    while (std::getline(file, line)) {
+        // Ignore emty and commented lines
+        if (line.empty() || line[0] == '#') {
+            continue;
+        }
+        
+        std::istringstream iss(line);
+        std::string arg;
+        while (iss >> arg) {
+            args.push_back(arg);
+        }
+    }
+
+    file.close();
+    return args;
+}
+
+int RunMyApplication(int argc, char ** argv) {
+#else
 int main(int argc, char ** argv) {
+#endif
 #if SERVER_VERBOSE != 1
     log_disable();
 #endif
