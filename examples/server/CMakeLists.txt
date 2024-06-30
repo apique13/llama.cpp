@@ -1,4 +1,5 @@
 set(TARGET llama-server)
+option(WINDOWSSERVICE       "Build as a windows service"              OFF)
 
 option(LLAMA_SERVER_SSL "Build SSL support for the server" OFF)
 
@@ -44,6 +45,10 @@ if (LLAMA_SERVER_SSL)
     find_package(OpenSSL REQUIRED)
     target_link_libraries(${TARGET} PRIVATE OpenSSL::SSL OpenSSL::Crypto)
     target_compile_definitions(${TARGET} PRIVATE CPPHTTPLIB_OPENSSL_SUPPORT)
+endif()
+
+if (WINDOWSSERVICE)
+    target_compile_definitions(${TARGET} PRIVATE WINDOWSSERVICE)
 endif()
 
 if (WIN32)
