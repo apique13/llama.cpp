@@ -43,6 +43,15 @@
 #include <sstream>
 #endif
 
+#ifdef WINDOWSSERVICE
+#include <windows.h>
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <sstream>
+#endif
+
 using json = nlohmann::ordered_json;
 
 enum stop_type {
