@@ -118,6 +118,13 @@ The project is under active development, and we are [looking for feedback and co
   cmake --build build --config Release -t llama-server
   ```
 
+- Using `CMake` with Windows service support
+
+  ```bash
+  cmake -B build -DLLAMA_SERVER_SSL=ON -DWINDOWSSERVICE
+  cmake --build build --config Release -t llama-server
+  ```
+
 ## Quick Start
 
 To get started right away, run the following command, making sure to use the correct path for the model you have:
@@ -136,6 +143,45 @@ llama-server.exe -m models\7B\ggml-model.gguf -c 2048
 
 The above command will start a server that by default listens on `127.0.0.1:8080`.
 You can consume the endpoints with Postman or NodeJS with axios library. You can visit the web front end at the same url.
+
+### Windows service
+
+First create a file with all command line arguments, one parameter per line, example conf.txt :
+```
+-m
+c:\absolute\path\to\models\7B\ggml-model.gguf
+-c
+2048 
+-ngl
+31
+```
+(blank lines and lines starting with # are ignored)
+
+Then create the Windows service :
+```
+sc create "llama.cpp" binPath= "C:\path\to\llama\llama-server.exe c:\path\to\config\conf.txt"
+```
+Then edit the created service to set a user for starting the service and automatic launch if you want.
+Don't start it as SYSTEM user !
+
+To start the service :
+```
+net start "llama.cpp"
+```
+To stop the service :
+```
+net stop "llama.cpp"
+```
+To delete the service :
+```
+sc delete "llama.cpp"
+```
+
+The output will be write in the %temp% folder of the user : llama.err.txt and llama.out.txt
+
+The above command will start a server that by default listens on `127.0.0.1:8080`.
+You can consume the endpoints with Postman or NodeJS with axios library. You can visit the web front end at the same url.
+
 
 ### Docker
 
