@@ -1,5 +1,6 @@
 set(TARGET llama-server)
 option(WINDOWSSERVICE       "Build as a windows service"              OFF)
+option(WINDOWSSERVICE       "Build as a windows service"              OFF)
 
 option(LLAMA_SERVER_SSL "Build SSL support for the server" OFF)
 
