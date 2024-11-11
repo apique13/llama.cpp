@@ -2265,11 +2265,14 @@ std::vector<std::string> ReadConfigFile(const std::string& filepath);
 std::vector<char*> argvVec;
 // Only config file
 std::vector<std::string> configArgs;
+
+// The main method for Windows Service
 int main(int argc, char* argv[]) {
     SERVICE_TABLE_ENTRY ServiceTable[] = {
         { (LPSTR)"llama", (LPSERVICE_MAIN_FUNCTION)ServiceMain },
         { nullptr, nullptr }
     };
+
     char tempPath[MAX_PATH];
     char logOut[MAX_PATH];
     char logErr[MAX_PATH];
@@ -2280,9 +2283,9 @@ int main(int argc, char* argv[]) {
     // Redirect stdout and stderr to these files
     freopen(logOut, "w", stdout);
     freopen(logErr, "w", stderr);
-    std::cerr << "Main Arg number : " << argc << std::endl;
-
+ 
     if (argc == 2) {
+        // Only 2 arguments, program name + config file path
         configArgs= ReadConfigFile(argv[1]);
         // Build args of the main function
         argvVec.push_back(argv[0]);  // Program name
@@ -2290,11 +2293,13 @@ int main(int argc, char* argv[]) {
             argvVec.push_back(const_cast<char*>(arg.c_str()));
         }
     } else {
+        // All args are in the command line
         for (DWORD i = 0; i < argc; ++i) {
             argvVec.push_back(argv[i]);
         }
     }
 
+    // Start the windows service
     if (!StartServiceCtrlDispatcher(ServiceTable)) {     
         // Read config file
         if (argc != 2) {
@@ -2307,8 +2312,8 @@ int main(int argc, char* argv[]) {
     return 0;
 }
 
+// Main windows service method
 void WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
-
 
     hStatus = RegisterServiceCtrlHandler("llama", (LPHANDLER_FUNCTION)ControlHandler);
     if (hStatus == nullptr) {
@@ -2334,6 +2339,8 @@ void WINAPI ServiceMain(DWORD dwArgc, LPTSTR *lpszArgv) {
     SetServiceStatus(hStatus, &ServiceStatus);
 }
 
+// Windows service control handler
+// To manage stop/shutdown of the service
 void ControlHandler(DWORD request) {
     switch (request) {
     case SERVICE_CONTROL_STOP:
@@ -2356,6 +2363,9 @@ void ControlHandler(DWORD request) {
     SetServiceStatus(hStatus, &ServiceStatus);
 }
 
+// Read the configuration file
+// One parameter per line, empty and commented lines are ignored
+// TODO : read the arguments from a structured file
 std::vector<std::string> ReadConfigFile(const std::string& filepath) {
     std::vector<std::string> args;
     std::ifstream file(filepath);
@@ -2381,13 +2391,12 @@ std::vector<std::string> ReadConfigFile(const std::string& filepath) {
     file.close();
     return args;
 }
-
+// Rename original main as "RunMyApplication" when it is called from the 
+// ServiceMain Windows Service method
 int RunMyApplication(int argc, char ** argv) {
 #else
+// Original main method
 int main(int argc, char ** argv) {
-#endif
-#if SERVER_VERBOSE != 1
-    log_disable();
 #endif
     // own arguments required by this example
     common_params params;
